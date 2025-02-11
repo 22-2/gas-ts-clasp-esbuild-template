@@ -1,6 +1,6 @@
 import { requestCharCount } from "./count-characters";
 
-function main() {
+function executeCount() {
   try {
     const count = requestCharCount(); // 文字数を取得 (この関数の実装は別途必要)
 
@@ -66,4 +66,4 @@ function main() {
   }
 }
 
-main();
+(global as any).executeCount = executeCount;

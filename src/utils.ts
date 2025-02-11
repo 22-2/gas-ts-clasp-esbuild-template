@@ -24,6 +24,10 @@ export function parseMd(markdownText: string): {
   const frontmatterPattern = /^---\n(.*?)\n---\n(.*)/s;
   const match = markdownText.match(frontmatterPattern);
 
+  if (!match) {
+    return { content: markdownText, frontmatter: "" };
+  }
+
   return orThrow(match, match => ({
     frontmatter: match[1],
     content: match[2],
