@@ -1,5 +1,5 @@
 import { DIARY_SHEET, HOURLY_SHEET } from "./constants";
-import { dailyRecord, hourlyRecord } from "./record";
+import { writeRecord } from "./helpers";
 
 //--------------------------------------------------
 // シートごと、日付ごとに記録する関数 (毎日トリガーで実行)
@@ -7,7 +7,7 @@ import { dailyRecord, hourlyRecord } from "./record";
 function executeDaily() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = spreadsheet.getSheetByName(DIARY_SHEET.NAME);
-  if (sheet) dailyRecord(sheet);
+  if (sheet) writeRecord(sheet, DIARY_SHEET, false);
   else {
     throw Error("Error: 記録対象のシートが見つかりません"); // 記録対象のシートが見つからなかった場合の処理}
   }
@@ -18,7 +18,7 @@ function executeDaily() {
 function executeHourly() {
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = spreadsheet.getSheetByName(HOURLY_SHEET.NAME);
-  if (sheet) hourlyRecord(sheet); // 記録処理
+  if (sheet) writeRecord(sheet, HOURLY_SHEET, true);
   else {
     throw Error("Error: 記録対象のシートが見つかりません"); // 記録対象のシートが見つからなかった場合の処理}
   }
