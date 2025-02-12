@@ -37,25 +37,22 @@ function executeCount() {
     sheet.getRange(newRow, COLUMN_TIME).setValue(formattedTime);
     sheet.getRange(newRow, COLUMN_COUNT).setValue(count);
 
-    // 前日比の計算 (2行目以降)
+    // 前の記録との差分を計算 (2行目以降)
     if (newRow > 1) {
-      //前日の文字数を取得。ただし、日付を考慮して検索する。
+      //前回の文字数を取得。
       let previousCount = "N/A";
-      for (let i = newRow - 1; i >= 1; i--) {
-        const dateValue = sheet.getRange(i, COLUMN_DATE).getValue();
-        if (dateValue instanceof Date && Utilities.formatDate(dateValue, Session.getScriptTimeZone(), DATE_FORMAT) != formattedDate) {
-          previousCount = sheet.getRange(i, COLUMN_COUNT).getValue();
-          break;
-        }
+      if (newRow > 2) { //2行目の時は比較対象がないのでスキップ
+        previousCount = sheet.getRange(newRow - 1, COLUMN_COUNT).getValue();
       }
 
-      let formula = `=IFERROR(D${newRow} - ${previousCount}, "N/A")`;
+      let formula = `=IFERROR(${count} - ${previousCount}, "N/A")`; //数式を修正
 
       if (previousCount === "N/A") {
         sheet.getRange(newRow, COLUMN_DIFFERENCE).setValue("N/A");
       } else {
-        sheet.getRange(newRow, COLUMN_DIFFERENCE).setFormula(formula);
+        sheet.getRange(newRow, COLUMN_DIFFERENCE).setFormula(formula); //数式を使用
       }
+
 
     } else {
       // 最初の行の場合、前日比は "N/A"
