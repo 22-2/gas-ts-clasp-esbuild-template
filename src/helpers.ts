@@ -10,45 +10,6 @@ interface SheetConfig {
 }
 
 /**
- * シートに記録を書き込む共通関数
- *
- * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 書き込み対象のシート
- * @param {SheetConfig} sheetConfig - シートの設定オブジェクト
- * @param {boolean} isHourly - 時間別記録かどうか (true: 時間別, false: 日別)
- */
-export function writeRecord(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: SheetConfig, isHourly: boolean) {
-  const count = requestCharCount();
-
-  if (isNaN(count)) {
-    throw new Error("文字数の取得に失敗しました。count-characters.ts内の設定を見直してください。");
-  }
-
-  const now = new Date();
-  const formattedDate = Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_FORMAT);
-
-
-  let rowToInsert: number;
-
-  if (isHourly) {
-    // 時間別記録: 常に新しい行に追記
-    rowToInsert = sheet.getLastRow() + 1;
-    const formattedTime = Utilities.formatDate(now, Session.getScriptTimeZone(), TIME_FORMAT);
-    sheet.getRange(rowToInsert, sheetConfig.COL_TIME!).setValue(formattedTime); // 時刻
-  } else {
-    // 日別記録: 今日の日付があればその行、なければ新しい行
-    rowToInsert = findRowByDate(sheet, sheetConfig, now);
-  }
-
-
-  sheet.getRange(rowToInsert, sheetConfig.COL_DATE).setValue(formattedDate); // 日付
-  sheet.getRange(rowToInsert, sheetConfig.COL_COUNT).setValue(count); // 文字数
-
-  // 差分計算
-  calculateDifference(sheet, sheetConfig, rowToInsert, count);
-}
-
-
-/**
  * 日付で記録行を検索する
  *
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 検索対象のシート
@@ -70,47 +31,22 @@ function findRowByDate(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: S
   return lastRow + 1; // 見つからなかった場合は新しい行
 }
 
-
 /**
- * 差分を計算して書き込む
+ * 差分を計算して書き込む (時間別記録用)
  *
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 書き込み対象のシート
  * @param {SheetConfig} sheetConfig - シート設定
  * @param {number} currentRow - 現在の行番号
  * @param {number} currentCount - 現在の文字数
  */
-function calculateDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: SheetConfig, currentRow: number, currentCount: number) {
+function calculateHourlyDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: SheetConfig, currentRow: number, currentCount: number) {
   if (currentRow <= 1) {
     sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A"); // 最初の行は "N/A"
     return;
   }
 
-  let previousCount: number | "N/A" = "N/A";
-  const values = sheet.getRange(1, sheetConfig.COL_DATE, currentRow - 1, 2).getValues();
-
-  // 日別記録の場合、前日のデータを取得
-  if (sheetConfig.COL_TIME === undefined) {
-    for (let i = values.length - 1; i >= 0; i--) {
-      const prebDate = values[i][0];
-      const today = sheet.getRange(currentRow, sheetConfig.COL_DATE).getValue();
-      if (!(prebDate instanceof Date && today instanceof Date && prebDate.toDateString() === today.toDateString())) {
-        const count = values[i][1]; //日付の隣のセル（カウント）を取得
-        if (typeof count === "number") {
-          previousCount = count;
-          break;
-        }
-      }
-    }
-  }
-  //時間別記録の場合
-  else {
-    const count = values[values.length - 1][1];
-    if (typeof count === "number") {
-      previousCount = count;
-    }
-  }
-
-
+  //前回の記録を取得
+  const previousCount = sheet.getRange(currentRow - 1, sheetConfig.COL_COUNT).getValue();
   if (typeof previousCount === "number") {
     const formula = `=IFERROR(${currentCount} - ${previousCount}, "N/A")`;
     sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setFormula(formula);
@@ -119,3 +55,78 @@ function calculateDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetCon
   }
 }
 
+/**
+ * 差分を計算して書き込む (日別記録用)
+ *
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 書き込み対象のシート
+ * @param {SheetConfig} sheetConfig - シート設定
+ * @param {number} currentRow - 現在の行番号
+ * @param {number} currentCount - 現在の文字数
+ */
+function calculateDailyDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: SheetConfig, currentRow: number, currentCount: number) {
+  if (currentRow <= 1) {
+    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A"); // 最初の行は "N/A"
+    return;
+  }
+  let previousCount: number | "N/A" = "N/A";
+
+  //前日の日付と文字数を取得する
+  for (let i = currentRow - 1; i >= 1; i--) {
+    const previousDate = sheet.getRange(i, sheetConfig.COL_DATE).getValue();
+    const today = sheet.getRange(currentRow, sheetConfig.COL_DATE).getValue();
+
+    if (previousDate instanceof Date && today instanceof Date && previousDate.toDateString() !== today.toDateString()) {
+      const count = sheet.getRange(i, sheetConfig.COL_COUNT).getValue();
+      if (typeof count === "number") {
+        previousCount = count;
+        break;
+      }
+    }
+  }
+
+  if (typeof previousCount === "number") {
+    const formula = `=IFERROR(${currentCount} - ${previousCount}, "N/A")`;
+    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setFormula(formula);
+  } else {
+    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A");
+  }
+}
+/**
+ * シートに記録を書き込む共通関数
+ *
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 書き込み対象のシート
+ * @param {SheetConfig} sheetConfig - シートの設定オブジェクト
+ * @param {boolean} isHourly - 時間別記録かどうか (true: 時間別, false: 日別)
+ */
+export function writeRecord(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: SheetConfig, isHourly: boolean) {
+  const count = requestCharCount();
+
+  if (isNaN(count)) {
+    throw new Error("文字数の取得に失敗しました。count-characters.ts内の設定を見直してください。");
+  }
+
+  const now = new Date();
+  const formattedDate = Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_FORMAT);
+
+  let rowToInsert: number;
+
+  if (isHourly) {
+    // 時間別記録: 常に新しい行に追記
+    rowToInsert = sheet.getLastRow() + 1;
+    const formattedTime = Utilities.formatDate(now, Session.getScriptTimeZone(), TIME_FORMAT);
+    sheet.getRange(rowToInsert, sheetConfig.COL_TIME!).setValue(formattedTime); // 時刻
+  } else {
+    // 日別記録: 今日の日付があればその行、なければ新しい行
+    rowToInsert = findRowByDate(sheet, sheetConfig, now);
+  }
+
+  sheet.getRange(rowToInsert, sheetConfig.COL_DATE).setValue(formattedDate); // 日付
+  sheet.getRange(rowToInsert, sheetConfig.COL_COUNT).setValue(count); // 文字数
+
+  // 差分計算 (時間別と日別で関数を分ける)
+  if (isHourly) {
+    calculateHourlyDifference(sheet, sheetConfig, rowToInsert, count);
+  } else {
+    calculateDailyDifference(sheet, sheetConfig, rowToInsert, count);
+  }
+}
