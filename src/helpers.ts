@@ -10,6 +10,46 @@ interface SheetConfig {
 }
 
 /**
+ * シートに記録を書き込む共通関数
+ *
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 書き込み対象のシート
+ * @param {SheetConfig} sheetConfig - シートの設定オブジェクト
+ * @param {boolean} isHourly - 時間別記録かどうか (true: 時間別, false: 日別)
+ */
+export function writeRecord(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: SheetConfig, isHourly: boolean) {
+  const count = requestCharCount();
+
+  if (isNaN(count)) {
+    throw new Error("文字数の取得に失敗しました。count-characters.ts内の設定を見直してください。");
+  }
+
+  const now = new Date();
+  const formattedDate = Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_FORMAT);
+
+  let rowToInsert: number;
+
+  if (isHourly) {
+    // 時間別記録: 常に新しい行に追記
+    rowToInsert = sheet.getLastRow() + 1;
+    const formattedTime = Utilities.formatDate(now, Session.getScriptTimeZone(), TIME_FORMAT);
+    sheet.getRange(rowToInsert, sheetConfig.COL_TIME!).setValue(formattedTime); // 時刻
+  } else {
+    // 日別記録: 今日の日付があればその行、なければ新しい行
+    rowToInsert = findRowByDate(sheet, sheetConfig, now);
+  }
+
+  sheet.getRange(rowToInsert, sheetConfig.COL_DATE).setValue(formattedDate); // 日付
+  sheet.getRange(rowToInsert, sheetConfig.COL_COUNT).setValue(count); // 文字数
+
+  // 差分計算 (時間別と日別で関数を分ける)
+  if (isHourly) {
+    calculateHourlyDifference(sheet, sheetConfig, rowToInsert, count);
+  } else {
+    calculateDailyDifference(sheet, sheetConfig, rowToInsert, count);
+  }
+}
+
+/**
  * 日付で記録行を検索する
  *
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 検索対象のシート
@@ -89,44 +129,5 @@ function calculateDailyDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, she
     sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setFormula(formula);
   } else {
     sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A");
-  }
-}
-/**
- * シートに記録を書き込む共通関数
- *
- * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 書き込み対象のシート
- * @param {SheetConfig} sheetConfig - シートの設定オブジェクト
- * @param {boolean} isHourly - 時間別記録かどうか (true: 時間別, false: 日別)
- */
-export function writeRecord(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: SheetConfig, isHourly: boolean) {
-  const count = requestCharCount();
-
-  if (isNaN(count)) {
-    throw new Error("文字数の取得に失敗しました。count-characters.ts内の設定を見直してください。");
-  }
-
-  const now = new Date();
-  const formattedDate = Utilities.formatDate(now, Session.getScriptTimeZone(), DATE_FORMAT);
-
-  let rowToInsert: number;
-
-  if (isHourly) {
-    // 時間別記録: 常に新しい行に追記
-    rowToInsert = sheet.getLastRow() + 1;
-    const formattedTime = Utilities.formatDate(now, Session.getScriptTimeZone(), TIME_FORMAT);
-    sheet.getRange(rowToInsert, sheetConfig.COL_TIME!).setValue(formattedTime); // 時刻
-  } else {
-    // 日別記録: 今日の日付があればその行、なければ新しい行
-    rowToInsert = findRowByDate(sheet, sheetConfig, now);
-  }
-
-  sheet.getRange(rowToInsert, sheetConfig.COL_DATE).setValue(formattedDate); // 日付
-  sheet.getRange(rowToInsert, sheetConfig.COL_COUNT).setValue(count); // 文字数
-
-  // 差分計算 (時間別と日別で関数を分ける)
-  if (isHourly) {
-    calculateHourlyDifference(sheet, sheetConfig, rowToInsert, count);
-  } else {
-    calculateDailyDifference(sheet, sheetConfig, rowToInsert, count);
   }
 }
