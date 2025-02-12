@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "type-check": "tsc --noEmit",
-    "build": "node esbuild.js",
+    "build": "bun run esbuild.js",
     "push": "clasp push",
     "open": "clasp open",
     "deploy": "bun run build && bun run push"
