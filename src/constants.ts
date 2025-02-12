@@ -20,3 +20,10 @@ export const GOAL_CELL = '$G$2';
 export const GOAL_CELLS_RANGE = 'G1:I3';
 
 export const NOVEL_FOLDER_ID = '1QkI_Gy8AQu78p_bKA0P0IqmfdqukER_W';
+
+export const COL_DATE = 1; // 日付列
+export const COL_TIME = 2; // 時刻列
+export const COL_DIFFERENCE = 3; // 差分列
+export const COL_COUNT = 4; // 文字数列
+export const DATE_FORMAT = "yyyy/MM/dd";
+export const TIME_FORMAT = "HH:mm:ss";
