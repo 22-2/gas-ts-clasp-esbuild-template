@@ -43,9 +43,9 @@ export function writeRecord(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConf
 
   // 差分計算 (時間別と日別で関数を分ける)
   if (isHourly) {
-    calculateHourlyDifference(sheet, sheetConfig, rowToInsert, count);
+    calculateHourlyDifference(sheet, sheetConfig, rowToInsert);
   } else {
-    calculateDailyDifference(sheet, sheetConfig, rowToInsert, count);
+    calculateDailyDifference(sheet, sheetConfig, rowToInsert);
   }
 }
 
@@ -77,22 +77,16 @@ function findRowByDate(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: S
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 書き込み対象のシート
  * @param {SheetConfig} sheetConfig - シート設定
  * @param {number} currentRow - 現在の行番号
- * @param {number} currentCount - 現在の文字数
  */
-function calculateHourlyDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: SheetConfig, currentRow: number, currentCount: number) {
+function calculateHourlyDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: SheetConfig, currentRow: number) {
   if (currentRow <= 1) {
     sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A"); // 最初の行は "N/A"
     return;
   }
 
-  //前回の記録を取得
-  const previousCount = sheet.getRange(currentRow - 1, sheetConfig.COL_COUNT).getValue();
-  if (typeof previousCount === "number") {
-    const formula = `=IFERROR(${currentCount} - ${previousCount}, "N/A")`;
-    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setFormula(formula);
-  } else {
-    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A");
-  }
+  const previousRow = currentRow - 1;
+  const formula = `=IFERROR(${sheetConfig.NAME}!${getColName(sheetConfig.COL_COUNT)}${currentRow} - ${sheetConfig.NAME}!${getColName(sheetConfig.COL_COUNT)}${previousRow}, "N/A")`;
+  sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setFormula(formula);
 }
 
 /**
@@ -101,33 +95,34 @@ function calculateHourlyDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, sh
  * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet - 書き込み対象のシート
  * @param {SheetConfig} sheetConfig - シート設定
  * @param {number} currentRow - 現在の行番号
- * @param {number} currentCount - 現在の文字数
  */
-function calculateDailyDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: SheetConfig, currentRow: number, currentCount: number) {
+function calculateDailyDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: SheetConfig, currentRow: number) {
   if (currentRow <= 1) {
-    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A"); // 最初の行は "N/A"
+    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A");
     return;
   }
-  let previousCount: number | "N/A" = "N/A";
 
-  //前日の日付と文字数を取得する
-  for (let i = currentRow - 1; i >= 1; i--) {
-    const previousDate = sheet.getRange(i, sheetConfig.COL_DATE).getValue();
-    const today = sheet.getRange(currentRow, sheetConfig.COL_DATE).getValue();
+  // 今日の日付を取得
+  const today = sheet.getRange(currentRow, sheetConfig.COL_DATE).getValue() as Date;
+  const todayString = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
 
-    if (previousDate instanceof Date && today instanceof Date && previousDate.toDateString() !== today.toDateString()) {
-      const count = sheet.getRange(i, sheetConfig.COL_COUNT).getValue();
-      if (typeof count === "number") {
-        previousCount = count;
-        break;
-      }
-    }
+  // INDIRECT関数とMATCH関数を組み合わせて、前日の日付の行を動的に検索
+  const formula = `=IFERROR(${sheetConfig.NAME}!${getColName(sheetConfig.COL_COUNT)}${currentRow} - INDIRECT("${sheetConfig.NAME}!${getColName(sheetConfig.COL_COUNT)}"&MATCH(DATE(${todayString.split('-')[0]},${todayString.split('-')[1]},${todayString.split('-')[2]}-1),${sheetConfig.NAME}!${getColName(sheetConfig.COL_DATE)}1:${getColName(sheetConfig.COL_DATE)},0)), "N/A")`;
+  sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setFormula(formula);
+}
+
+/**
+ * 列番号を列名に変換する関数
+ * @param {number} colNumber - 列番号(1始まり)
+ * @returns {string} - 列名(A, B, C, ...)
+ */
+function getColName(colNumber: number): string {
+  let colName = '';
+  let temp: number;
+  while (colNumber > 0) {
+    temp = (colNumber - 1) % 26;
+    colName = String.fromCharCode(65 + temp) + colName;
+    colNumber = (colNumber - temp - 1) / 26;
   }
-
-  if (typeof previousCount === "number") {
-    const formula = `=IFERROR(${currentCount} - ${previousCount}, "N/A")`;
-    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setFormula(formula);
-  } else {
-    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A");
-  }
+  return colName;
 }
