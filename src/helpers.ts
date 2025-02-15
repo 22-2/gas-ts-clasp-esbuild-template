@@ -48,8 +48,8 @@ export function writeRecord(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConf
     calculateDailyDifference(sheet, sheetConfig, rowToInsert);
   }
 
-  // 差分列の表示形式を「自動」に設定
-  sheet.getRange(rowToInsert, sheetConfig.COL_DIFFERENCE).setNumberFormat("@");
+  // 差分列の表示形式を「数字」に設定
+  sheet.getRange(rowToInsert, sheetConfig.COL_DIFFERENCE).setNumberFormat("0");
 }
 
 /**
@@ -73,7 +73,6 @@ function findRowByDate(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConfig: S
   }
   return lastRow + 1; // 見つからなかった場合は新しい行
 }
-
 /**
  * 差分を計算して書き込む (時間別記録用)
  *
@@ -87,15 +86,9 @@ function calculateHourlyDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, sh
     return;
   }
 
-  const previousRow = currentRow - 1;
-  const currentCount = sheet.getRange(currentRow, sheetConfig.COL_COUNT).getValue();
-  const previousCount = sheet.getRange(previousRow, sheetConfig.COL_COUNT).getValue();
-
-  if (typeof currentCount === "number" && typeof previousCount === "number") {
-    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue(currentCount - previousCount);
-  } else {
-    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A");
-  }
+  // 数式を使って差分を計算 (相対参照)
+  const formula = `=${String.fromCharCode(64 + sheetConfig.COL_COUNT)}${currentRow}-${String.fromCharCode(64 + sheetConfig.COL_COUNT)}${currentRow - 1}`;
+  sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setFormula(formula);
 }
 
 /**
@@ -110,13 +103,14 @@ function calculateDailyDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, she
     sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A");
     return;
   }
-  const previousRow = currentRow - 1;
-  const currentCount = sheet.getRange(currentRow, sheetConfig.COL_COUNT).getValue();
-  const previousCount = sheet.getRange(previousRow, sheetConfig.COL_COUNT).getValue();
 
-  if (typeof currentCount === "number" && typeof previousCount === "number") {
-    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue(currentCount - previousCount);
-  } else {
-    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A");
-  }
+  // 数式を使って差分を計算 (相対参照)
+  const formula = `=${String.fromCharCode(64 + sheetConfig.COL_COUNT)}${currentRow}-${String.fromCharCode(64 + sheetConfig.COL_COUNT)}${currentRow - 1}`;
+  sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setFormula(formula);
+}
+
+
+interface SheetConfig {
+  COL_COUNT: number;
+  COL_DIFFERENCE: number;
 }
