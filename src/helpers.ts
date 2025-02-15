@@ -47,6 +47,9 @@ export function writeRecord(sheet: GoogleAppsScript.Spreadsheet.Sheet, sheetConf
   } else {
     calculateDailyDifference(sheet, sheetConfig, rowToInsert);
   }
+
+  // 差分列の表示形式を「自動」に設定
+  sheet.getRange(rowToInsert, sheetConfig.COL_DIFFERENCE).setNumberFormat("@");
 }
 
 /**
@@ -85,8 +88,14 @@ function calculateHourlyDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, sh
   }
 
   const previousRow = currentRow - 1;
-  const formula = `=IFERROR(${sheetConfig.NAME}!${getColName(sheetConfig.COL_COUNT)}${currentRow} - ${sheetConfig.NAME}!${getColName(sheetConfig.COL_COUNT)}${previousRow}, "N/A")`;
-  sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setFormula(formula);
+  const currentCount = sheet.getRange(currentRow, sheetConfig.COL_COUNT).getValue();
+  const previousCount = sheet.getRange(previousRow, sheetConfig.COL_COUNT).getValue();
+
+  if (typeof currentCount === "number" && typeof previousCount === "number") {
+    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue(currentCount - previousCount);
+  } else {
+    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A");
+  }
 }
 
 /**
@@ -101,28 +110,13 @@ function calculateDailyDifference(sheet: GoogleAppsScript.Spreadsheet.Sheet, she
     sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A");
     return;
   }
+  const previousRow = currentRow - 1;
+  const currentCount = sheet.getRange(currentRow, sheetConfig.COL_COUNT).getValue();
+  const previousCount = sheet.getRange(previousRow, sheetConfig.COL_COUNT).getValue();
 
-  // 今日の日付を取得
-  const today = sheet.getRange(currentRow, sheetConfig.COL_DATE).getValue() as Date;
-  const todayString = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-
-  // INDIRECT関数とMATCH関数を組み合わせて、前日の日付の行を動的に検索
-  const formula = `=IFERROR(${sheetConfig.NAME}!${getColName(sheetConfig.COL_COUNT)}${currentRow} - INDIRECT("${sheetConfig.NAME}!${getColName(sheetConfig.COL_COUNT)}"&MATCH(DATE(${todayString.split('-')[0]},${todayString.split('-')[1]},${todayString.split('-')[2]}-1),${sheetConfig.NAME}!${getColName(sheetConfig.COL_DATE)}1:${getColName(sheetConfig.COL_DATE)},0)), "N/A")`;
-  sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setFormula(formula);
-}
-
-/**
- * 列番号を列名に変換する関数
- * @param {number} colNumber - 列番号(1始まり)
- * @returns {string} - 列名(A, B, C, ...)
- */
-function getColName(colNumber: number): string {
-  let colName = '';
-  let temp: number;
-  while (colNumber > 0) {
-    temp = (colNumber - 1) % 26;
-    colName = String.fromCharCode(65 + temp) + colName;
-    colNumber = (colNumber - temp - 1) / 26;
+  if (typeof currentCount === "number" && typeof previousCount === "number") {
+    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue(currentCount - previousCount);
+  } else {
+    sheet.getRange(currentRow, sheetConfig.COL_DIFFERENCE).setValue("N/A");
   }
-  return colName;
 }
